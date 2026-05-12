@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # mistral-vibe-patches — Bugfix patches for Mistral Vibe CLI
-# Copyright (C) 2026  doutorprestes
+# Copyright (C) 2026  José Augusto de Lima Prestes <doutorprestes@gmail.com>
 #
 # Patches are derivative works of Mistral Vibe (Apache 2.0).
 # Original: https://github.com/mistralai/mistral-vibe

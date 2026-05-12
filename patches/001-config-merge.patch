@@ -1,4 +1,4 @@
-From: doutorprestes <doutorprestes@users.noreply.github.com>
+From: José Augusto de Lima Prestes <doutorprestes@gmail.com>
 Date: Tue, 12 May 2026
 Subject: [PATCH 1/2] Fix user config ignored when project config exists
 
@@ -14,7 +14,7 @@ were silently discarded.
 
 This patch is a derivative work of Mistral Vibe, Copyright Mistral AI.
 Original: https://github.com/mistralai/mistral-vibe (Apache 2.0)
-Signed-off-by: doutorprestes <doutorprestes@users.noreply.github.com>
+Signed-off-by: José Augusto de Lima Prestes <doutorprestes@gmail.com>
 diff --git a/vibe/core/config/_settings.py b/vibe/core/config/_settings.py
 index b293c9d..5f152c9 100644
 --- a/vibe/core/config/_settings.py

@@ -1,4 +1,12 @@
 #!/usr/bin/env bash
+# mistral-vibe-patches — Bugfix patches for Mistral Vibe CLI
+# Copyright (C) 2026  doutorprestes
+#
+# Patches are derivative works of Mistral Vibe (Apache 2.0).
+# Original: https://github.com/mistralai/mistral-vibe
+#
+# This program is free software under the terms of the
+# Apache License, Version 2.0.  See the LICENSE file.
 set -euo pipefail
 
 VERSION="1.0.0"

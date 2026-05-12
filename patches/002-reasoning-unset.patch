@@ -1,3 +1,16 @@
+From: doutorprestes <doutorprestes@users.noreply.github.com>
+Date: Tue, 12 May 2026
+Subject: [PATCH 2/2] Omit reasoning_effort when thinking="off"
+
+Models like devstral-small-latest reject requests that include
+reasoning_effort in the payload.  When thinking="off" the code was
+passing None to the Mistral SDK, which serialised it as null in the
+request body.  The fix uses the SDK's UNSET sentinel to omit the
+parameter entirely.
+
+This patch is a derivative work of Mistral Vibe, Copyright Mistral AI.
+Original: https://github.com/mistralai/mistral-vibe (Apache 2.0)
+Signed-off-by: doutorprestes <doutorprestes@users.noreply.github.com>
 diff --git a/vibe/core/llm/backend/mistral.py b/vibe/core/llm/backend/mistral.py
 index 1ff86c3..2469907 100644
 --- a/vibe/core/llm/backend/mistral.py

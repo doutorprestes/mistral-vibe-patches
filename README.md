@@ -3,6 +3,11 @@
 Bugfix patches for [Mistral Vibe](https://github.com/mistralai/mistral-vibe), the CLI coding agent
 by Mistral.
 
+**Author:** [@doutorprestes](https://github.com/doutorprestes)
+
+These patches are derivative works of Mistral Vibe, Copyright Mistral AI — distributed under
+[Apache 2.0](LICENSE). See each `.patch` file for the `Signed-off-by` line.
+
 ## Patches
 
 | # | Patch | Affects | Issue |

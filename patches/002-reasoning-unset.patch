@@ -1,0 +1,44 @@
+diff --git a/vibe/core/llm/backend/mistral.py b/vibe/core/llm/backend/mistral.py
+index 1ff86c3..2469907 100644
+--- a/vibe/core/llm/backend/mistral.py
++++ b/vibe/core/llm/backend/mistral.py
+@@ -29,6 +29,7 @@ from mistralai.client.models import (
+     ToolMessage,
+     UserMessage,
+ )
++from mistralai.client.types.basemodel import UNSET
+ from mistralai.client.utils.retries import BackoffStrategy, RetryConfig
+ 
+ from vibe.core.llm.exceptions import BackendErrorBuilder
+@@ -280,9 +281,12 @@ class MistralBackend:
+     ) -> LLMChunk:
+         try:
+             merged_messages = merge_consecutive_user_messages(messages)
+-            reasoning_effort = _THINKING_TO_REASONING_EFFORT.get(model.thinking)
+-            if reasoning_effort is not None:
+-                temperature = 1.0
++            if model.thinking != "off":
++                reasoning_effort = _THINKING_TO_REASONING_EFFORT.get(model.thinking)
++                if reasoning_effort is not None:
++                    temperature = 1.0
++            else:
++                reasoning_effort = UNSET
+ 
+             response = await self._get_client().chat.complete_async(
+                 model=model.name,
+@@ -359,9 +363,12 @@ class MistralBackend:
+     ) -> AsyncGenerator[LLMChunk, None]:
+         try:
+             merged_messages = merge_consecutive_user_messages(messages)
+-            reasoning_effort = _THINKING_TO_REASONING_EFFORT.get(model.thinking)
+-            if reasoning_effort is not None:
+-                temperature = 1.0
++            if model.thinking != "off":
++                reasoning_effort = _THINKING_TO_REASONING_EFFORT.get(model.thinking)
++                if reasoning_effort is not None:
++                    temperature = 1.0
++            else:
++                reasoning_effort = UNSET
+ 
+             stream = await self._get_client().chat.stream_async(
+                 model=model.name,

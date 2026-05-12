@@ -1,0 +1,168 @@
+diff --git a/vibe/core/config/_settings.py b/vibe/core/config/_settings.py
+index b293c9d..5f152c9 100644
+--- a/vibe/core/config/_settings.py
++++ b/vibe/core/config/_settings.py
+@@ -94,18 +94,121 @@ class TomlFileSettingsSource(PydanticBaseSettingsSource):
+         self.toml_data = self._load_toml()
+ 
+     def _load_toml(self) -> dict[str, Any]:
+-        file = get_harness_files_manager().config_file
+-        if file is None:
+-            return {}
+-        try:
+-            with file.open("rb") as f:
+-                return tomllib.load(f)
+-        except FileNotFoundError:
+-            return {}
+-        except tomllib.TOMLDecodeError as e:
+-            raise RuntimeError(f"Invalid TOML in {file}: {e}") from e
+-        except OSError as e:
+-            raise RuntimeError(f"Cannot read {file}: {e}") from e
++        mgr = get_harness_files_manager()
++
++        # If both user and project sources are enabled, merge configurations
++        # with user config taking precedence over project config
++        if "user" in mgr.sources and "project" in mgr.sources:
++            # Start with project config as base
++            merged_data = {}
++            project_file = mgr.config_file
++            if (
++                project_file
++                and project_file.is_file()
++                and mgr.trusted_workdir is not None
++            ):
++                try:
++                    with project_file.open("rb") as f:
++                        merged_data = tomllib.load(f)
++                except (FileNotFoundError, tomllib.TOMLDecodeError, OSError):
++                    pass
++
++            # Overlay user config on top (so user settings take precedence)
++            user_file = mgr.user_config_file
++            if user_file and user_file.is_file():
++                try:
++                    with user_file.open("rb") as f:
++                        user_data = tomllib.load(f)
++
++                    # Deep merge with special handling for lists (like models)
++                    merged_data = self._deep_merge_preserving_lists(
++                        merged_data, user_data
++                    )
++                except (FileNotFoundError, tomllib.TOMLDecodeError, OSError):
++                    pass
++
++            return merged_data
++        else:
++            # Fall back to original behavior for single source or when project not trusted
++            file = mgr.config_file
++            if file is None:
++                return {}
++            try:
++                with file.open("rb") as f:
++                    return tomllib.load(f)
++            except FileNotFoundError:
++                return {}
++            except tomllib.TOMLDecodeError as e:
++                raise RuntimeError(f"Invalid TOML in {file}: {e}") from e
++            except OSError as e:
++                raise RuntimeError(f"Cannot read {file}: {e}") from e
++
++    def _deep_merge_preserving_lists(
++        self, base: dict[str, Any], overlay: dict[str, Any]
++    ) -> dict[str, Any]:
++        """Merge two dicts, preserving list items from base when overlay doesn't specify them.
++
++        For the 'models' and 'providers' lists specifically, base items are preserved
++        when they are not overridden by overlay items with the same identifier.
++
++        Args:
++            base: Base configuration to merge into.
++            overlay: Override configuration that takes precedence over base.
++
++        Returns:
++            Merged dictionary with overlay taking precedence.
++        """
++        result = dict(base)
++
++        for key, value in overlay.items():
++            if (
++                key in result
++                and isinstance(result[key], list)
++                and isinstance(value, list)
++            ):
++                # Special handling for known lists that should be merged intelligently
++                if key == "models":
++                    # Create a dict of base models by alias for quick lookup
++                    base_models_by_alias = {
++                        model.get("alias"): model
++                        for model in result[key]
++                        if isinstance(model, dict) and model.get("alias")
++                    }
++
++                    # Overlay models replace or add to base models
++                    for overlay_model in value:
++                        if isinstance(overlay_model, dict) and overlay_model.get(
++                            "alias"
++                        ):
++                            alias = overlay_model["alias"]
++                            base_models_by_alias[alias] = overlay_model
++
++                    # Convert back to list
++                    result[key] = list(base_models_by_alias.values())
++                elif key == "providers":
++                    # Similar logic for providers
++                    base_providers_by_name = {
++                        provider.get("name"): provider
++                        for provider in result[key]
++                        if isinstance(provider, dict) and provider.get("name")
++                    }
++
++                    for overlay_provider in value:
++                        if isinstance(overlay_provider, dict) and overlay_provider.get(
++                            "name"
++                        ):
++                            name = overlay_provider["name"]
++                            base_providers_by_name[name] = overlay_provider
++
++                    result[key] = list(base_providers_by_name.values())
++                else:
++                    # For other lists, overlay completely replaces base (preserving existing behavior)
++                    result[key] = value
++            else:
++                # For non-list values or when key doesn't exist in base, overlay replaces
++                result[key] = value
++
++        return result
+ 
+     def get_field_value(
+         self, field: FieldInfo, field_name: str
+diff --git a/vibe/core/config/harness_files/_harness_manager.py b/vibe/core/config/harness_files/_harness_manager.py
+index 454874e..a7ed37b 100644
+--- a/vibe/core/config/harness_files/_harness_manager.py
++++ b/vibe/core/config/harness_files/_harness_manager.py
+@@ -49,9 +49,13 @@ class HarnessFilesManager:
+             if candidate.is_file():
+                 return candidate
+         if "user" in self.sources:
+-            return VIBE_HOME.path / "config.toml"
++            return VIBE_HOME.path / ".vibe" / "config.toml"
+         return None
+ 
++    @property
++    def user_config_file(self) -> Path:
++        return VIBE_HOME.path / ".vibe" / "config.toml"
++
+     @property
+     def hook_files(self) -> list[Path]:
+         hook_files: list[Path] = []
+@@ -105,10 +109,6 @@ class HarnessFilesManager:
+     def project_agents_dirs(self) -> list[Path]:
+         return list(self._walk_project_dirs().agents)
+ 
+-    @property
+-    def user_config_file(self) -> Path:
+-        return VIBE_HOME.path / "config.toml"
+-
+     @property
+     def project_prompts_dirs(self) -> list[Path]:
+         workdir = self.trusted_workdir

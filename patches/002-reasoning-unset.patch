@@ -1,12 +1,20 @@
 From: José Augusto de Lima Prestes <doutorprestes@gmail.com>
 Date: Tue, 12 May 2026
-Subject: [PATCH 2/2] Omit reasoning_effort when thinking="off"
+Subject: [PATCH 2/2] Omit reasoning_effort and reasoning_content when thinking="off"
 
 Models like devstral-small-latest reject requests that include
-reasoning_effort in the payload.  When thinking="off" the code was
-passing None to the Mistral SDK, which serialised it as null in the
-request body.  The fix uses the SDK's UNSET sentinel to omit the
-parameter entirely.
+reasoning_effort in the payload or reasoning_content in the message
+history.  When thinking="off" the code was passing None to the Mistral
+SDK, which serialised it as null in the request body.  Additionally,
+messages accumulated from a previous thinking model's session still
+contained reasoning_content fields that the API rejected.
+
+This fix:
+1. Uses the SDK's UNSET sentinel to omit reasoning_effort entirely
+2. Strips reasoning_content from all messages in both complete()
+   and complete_streaming() when thinking is off
+3. Uses model_copy(update={"reasoning_content": None}) instead of
+   the broken exclude= parameter (not supported by pydantic v2)
 
 This patch is a derivative work of Mistral Vibe, Copyright Mistral AI.
 Original: https://github.com/mistralai/mistral-vibe (Apache 2.0)
@@ -23,13 +31,22 @@ index 1ff86c3..2469907 100644
  from mistralai.client.utils.retries import BackoffStrategy, RetryConfig
  
  from vibe.core.llm.exceptions import BackendErrorBuilder
-@@ -280,9 +281,12 @@ class MistralBackend:
+@@ -280,9 +281,21 @@ class MistralBackend:
      ) -> LLMChunk:
          try:
              merged_messages = merge_consecutive_user_messages(messages)
 -            reasoning_effort = _THINKING_TO_REASONING_EFFORT.get(model.thinking)
 -            if reasoning_effort is not None:
 -                temperature = 1.0
++            # Strip reasoning_content if model doesn't support thinking
++            if model.thinking == "off":
++                merged_messages = [
++                    msg.model_copy(
++                        update={"reasoning_content": None},
++                        deep=True,
++                    )
++                    for msg in merged_messages
++                ]
 +            if model.thinking != "off":
 +                reasoning_effort = _THINKING_TO_REASONING_EFFORT.get(model.thinking)
 +                if reasoning_effort is not None:
@@ -39,13 +56,21 @@ index 1ff86c3..2469907 100644
  
              response = await self._get_client().chat.complete_async(
                  model=model.name,
-@@ -359,9 +363,12 @@ class MistralBackend:
+@@ -359,9 +372,20 @@ class MistralBackend:
      ) -> AsyncGenerator[LLMChunk, None]:
          try:
              merged_messages = merge_consecutive_user_messages(messages)
 -            reasoning_effort = _THINKING_TO_REASONING_EFFORT.get(model.thinking)
 -            if reasoning_effort is not None:
 -                temperature = 1.0
++            if model.thinking == "off":
++                merged_messages = [
++                    msg.model_copy(
++                        update={"reasoning_content": None},
++                        deep=True,
++                    )
++                    for msg in merged_messages
++                ]
 +            if model.thinking != "off":
 +                reasoning_effort = _THINKING_TO_REASONING_EFFORT.get(model.thinking)
 +                if reasoning_effort is not None:

@@ -30,18 +30,28 @@ loads both files and merges them with user settings taking precedence. Lists suc
 as `models` and `providers` are merged by their identifiers (alias / name) rather
 than being fully replaced.
 
-### Patch 2 — Omit `reasoning_effort` when model doesn't support it
+### Patch 2 — Omit `reasoning_effort` and `reasoning_content` when thinking is off
 
 Models like `devstral-small-latest` reject requests that include `reasoning_effort`
-in the JSON payload. Vibe was passing `reasoning_effort=None` to the Mistral SDK,
-which serializes it as `"reasoning_effort": null` in the request body.
+in the JSON payload or `reasoning_content` in the message history. Previously, even
+when the model had `thinking="off"`, switching from a thinking model mid-session
+left stale `reasoning_content` fields in accumulated messages.
 
-**Root cause:** The `MistralBackend.complete()` and `complete_streaming()` methods
-compute `reasoning_effort` from `model.thinking`. When `thinking="off"` the map
-returns `None`, and that `None` is forwarded to the SDK.
+**Root causes:**
+1. `MistralBackend.complete()` passed `reasoning_effort=None` to the SDK, which
+   serialised as `"reasoning_effort": null` in the request body.
+2. Neither `complete()` nor `complete_streaming()` stripped `reasoning_content`
+   from assistant messages before sending them to the API.
+3. The first patch attempt used `model_copy(deep=True, exclude=...)` which is not
+   supported by pydantic v2 — the `exclude` parameter does not exist on `model_copy`,
+   causing a silent TypeError.
 
-**Fix:** Use the Mistral SDK's `UNSET` sentinel instead of `None` when the model
-has `thinking="off"`, which omits `reasoning_effort` entirely from the request body.
+**Fix:**
+- Use the Mistral SDK's `UNSET` sentinel instead of `None` when `thinking="off"`,
+  which omits `reasoning_effort` entirely from the request body.
+- Strip `reasoning_content` from all messages in **both** `complete()` and
+  `complete_streaming()` when `thinking="off"`, using the correct
+  `model_copy(update={"reasoning_content": None}, deep=True)` pattern.
 
 ---
 

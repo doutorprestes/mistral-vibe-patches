@@ -9,7 +9,7 @@
 # Apache License, Version 2.0.  See the LICENSE file.
 set -euo pipefail
 
-VERSION="1.0.0"
+VERSION="1.1.0"
 REPO="mistral-vibe-patches"
 
 GREEN='\033[0;32m'
@@ -41,7 +41,11 @@ Options:
   --version, -v  Show version
   --help, -h     Show this help
 
-If no VIBE_HOME is set, patches fall back to ~/.vibe/config.toml behaviour.
+Patches fix:
+  1) User config (~/.vibe/config.toml) now takes precedence over project
+     config (.vibe/config.toml) when both exist.
+  2) reasoning_effort and reasoning_content are omitted when thinking="off",
+     preventing 400 errors on models like devstral-small-latest.
 EOF
     exit 0
 fi
@@ -103,7 +107,7 @@ fi
 
 # ── Reverse mode ──────────────────────────────────────────────────────
 REVERSE=false
-if [ "$1" = "--reverse" ]; then
+if [ "${1:-}" = "--reverse" ]; then
     REVERSE=true
     shift
 fi
@@ -147,18 +151,31 @@ done
 echo ""
 info "Verifying patches..."
 
-# Verify config-merge: user_config_file property should exist
-if grep -q "def user_config_file" "$VIBE_DIR/core/config/harness_files/_harness_manager.py" 2>/dev/null; then
-    ok "user_config_file property present"
-else
-    warn "user_config_file property not found (may have been reversed)"
+MANAGER="$VIBE_DIR/core/config/harness_files/_harness_manager.py"
+MISTRAL="$VIBE_DIR/core/llm/backend/mistral.py"
+
+# Verify config-merge: user_config_file must be ~/.vibe/config.toml (NOT ~/.vibe/.vibe/)
+if [ -f "$MANAGER" ]; then
+    if grep -q "def user_config_file" "$MANAGER" 2>/dev/null; then
+        ok "user_config_file property present"
+        # Ensure the path is correct (not ~/.vibe/.vibe/config.toml)
+        if grep -q 'VIBE_HOME.path / ".vibe" / "config.toml"' "$MANAGER" 2>/dev/null; then
+            fail "user_config_file points to ~/.vibe/.vibe/config.toml (wrong path). Patch 1 was not applied correctly."
+        elif grep -q 'VIBE_HOME.path / "config.toml"' "$MANAGER" 2>/dev/null; then
+            ok "user_config_file path is correct (~/.vibe/config.toml)"
+        fi
+    else
+        warn "user_config_file property not found (may have been reversed)"
+    fi
 fi
 
 # Verify reasoning: UNSET import should exist
-if grep -q "UNSET" "$VIBE_DIR/core/llm/backend/mistral.py" 2>/dev/null; then
-    ok "UNSET import present in mistral backend"
-else
-    warn "UNSET import not found (may have been reversed)"
+if [ -f "$MISTRAL" ]; then
+    if grep -q "from mistralai.client.types.basemodel import UNSET" "$MISTRAL" 2>/dev/null; then
+        ok "UNSET import present in mistral backend"
+    else
+        warn "UNSET import not found (may have been reversed)"
+    fi
 fi
 
 echo ""

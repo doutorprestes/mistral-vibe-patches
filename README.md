@@ -1,7 +1,7 @@
 # mistral-vibe-patches
 
 Bugfix patches for [Mistral Vibe](https://github.com/mistralai/mistral-vibe), the CLI coding agent
-by Mistral.
+by Mistral AI.
 
 **Author:** [@doutorprestes](https://github.com/doutorprestes)
 
@@ -41,15 +41,17 @@ when the model had `thinking="off"`, switching from a thinking model mid-session
 left stale `reasoning_content` fields in accumulated messages.
 
 **Root causes:**
+
 1. `MistralBackend.complete()` passed `reasoning_effort=None` to the SDK, which
-   serialised as `"reasoning_effort": null` in the request body.
+   serialized as `"reasoning_effort": null` in the request body.
 2. Neither `complete()` nor `complete_streaming()` stripped `reasoning_content`
    from assistant messages before sending them to the API.
-3. The first patch attempt used `model_copy(deep=True, exclude=...)` which is not
-   supported by pydantic v2 — the `exclude` parameter does not exist on `model_copy`,
+3. The first patch attempt used `model_copy(exclude=...)` which is not supported
+   by pydantic v2 — the `exclude` parameter does not exist on `model_copy`,
    causing a silent TypeError.
 
 **Fix:**
+
 - Use the Mistral SDK's `UNSET` sentinel instead of `None` when `thinking="off"`,
   which omits `reasoning_effort` entirely from the request body.
 - Strip `reasoning_content` from all messages in **both** `complete()` and
@@ -62,7 +64,7 @@ left stale `reasoning_content` fields in accumulated messages.
 
 ```bash
 # 1. Download
-curl -sSfL -O https://raw.githubusercontent.com/<user>/mistral-vibe-patches/main/apply.sh
+curl -sSfL -O https://raw.githubusercontent.com/doutorprestes/mistral-vibe-patches/main/apply.sh
 chmod +x apply.sh
 
 # 2. Apply all patches
@@ -100,7 +102,7 @@ The `apply.sh` script:
 1. Auto-detects the Vibe installation path (supports `uv`, `pipx`, and Homebrew)
 2. Creates `.bak` backups of every file that will be patched
 3. Applies the unified diffs using `patch -p1`
-4. Verifies the patches were applied correctly
+4. Verifies the patches were applied correctly (including path sanity checks)
 
 You can also inspect each `.patch` file and apply it manually:
 

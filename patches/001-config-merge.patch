@@ -1,12 +1,15 @@
 From: José Augusto de Lima Prestes <doutorprestes@gmail.com>
-Date: Tue, 12 May 2026
+Date: Sun, 17 May 2026
 Subject: [PATCH 1/2] Fix user config ignored when project config exists
 
 Vibe CLI was ignoring ~/.vibe/config.toml when a project-level
 .vibe/config.toml existed. User-defined [[models]] and active_model
 were silently discarded.
 
-  - HarnessFilesManager: fixed config_file and user_config_file paths
+  - HarnessFilesManager: moved user_config_file property next to
+    config_file for discoverability (path stays ~/.vibe/config.toml,
+    NOT ~/.vibe/.vibe/config.toml — the .vibe/ subdirectory is a
+    project-level convention)
   - TomlFileSettingsSource._load_toml(): merge user + project configs
     with user taking precedence
   - _deep_merge_preserving_lists(): intelligent merge for models and
@@ -15,11 +18,10 @@ were silently discarded.
 This patch is a derivative work of Mistral Vibe, Copyright Mistral AI.
 Original: https://github.com/mistralai/mistral-vibe (Apache 2.0)
 Signed-off-by: José Augusto de Lima Prestes <doutorprestes@gmail.com>
-diff --git a/vibe/core/config/_settings.py b/vibe/core/config/_settings.py
-index b293c9d..5f152c9 100644
---- a/vibe/core/config/_settings.py
-+++ b/vibe/core/config/_settings.py
-@@ -94,18 +94,121 @@ class TomlFileSettingsSource(PydanticBaseSettingsSource):
+
+--- a/vibe/core/config/_settings.py	2026-05-17 18:59:10.139763851 -0300
++++ b/vibe/core/config/_settings.py	2026-05-17 18:57:07.710087523 -0300
+@@ -94,18 +94,121 @@
          self.toml_data = self._load_toml()
  
      def _load_toml(self) -> dict[str, Any]:
@@ -153,33 +155,27 @@ index b293c9d..5f152c9 100644
  
      def get_field_value(
          self, field: FieldInfo, field_name: str
+
 diff --git a/vibe/core/config/harness_files/_harness_manager.py b/vibe/core/config/harness_files/_harness_manager.py
-index 454874e..a7ed37b 100644
---- a/vibe/core/config/harness_files/_harness_manager.py
-+++ b/vibe/core/config/harness_files/_harness_manager.py
-@@ -49,9 +49,13 @@ class HarnessFilesManager:
-             if candidate.is_file():
-                 return candidate
-         if "user" in self.sources:
--            return VIBE_HOME.path / "config.toml"
-+            return VIBE_HOME.path / ".vibe" / "config.toml"
+@@ -53,6 +53,10 @@
          return None
  
-+    @property
-+    def user_config_file(self) -> Path:
-+        return VIBE_HOME.path / ".vibe" / "config.toml"
-+
      @property
++    def user_config_file(self) -> Path:
++        return VIBE_HOME.path / "config.toml"
++
++    @property
      def hook_files(self) -> list[Path]:
          hook_files: list[Path] = []
-@@ -105,10 +109,6 @@ class HarnessFilesManager:
-     def project_agents_dirs(self) -> list[Path]:
+         if "user" in self.sources:
+@@ -106,10 +110,6 @@
          return list(self._walk_project_dirs().agents)
  
--    @property
+     @property
 -    def user_config_file(self) -> Path:
 -        return VIBE_HOME.path / "config.toml"
 -
-     @property
+-    @property
      def project_prompts_dirs(self) -> list[Path]:
          workdir = self.trusted_workdir
+         if workdir is None:

@@ -25,10 +25,13 @@ user-level configuration is completely ignored. Custom `[[models]]` definitions 
 the working directory is trusted, without merging it with the user-level config.
 The `TomlFileSettingsSource._load_toml()` method loads only that single file.
 
-**Fix:** When both "user" and "project" sources are enabled, the TOML loader now
-loads both files and merges them with user settings taking precedence. Lists such
-as `models` and `providers` are merged by their identifiers (alias / name) rather
-than being fully replaced.
+**Fix:** The `user_config_file` property is moved next to `config_file` for
+discoverability, keeping its path as `~/.vibe/config.toml` (the `.vibe/`
+subdirectory is a project-level convention, not a user-level one). When both
+"user" and "project" sources are enabled, the TOML loader now loads both files
+and merges them with user settings taking precedence. Lists such as `models`
+and `providers` are merged by their identifiers (alias / name) rather than
+being fully replaced.
 
 ### Patch 2 — Omit `reasoning_effort` and `reasoning_content` when thinking is off
 

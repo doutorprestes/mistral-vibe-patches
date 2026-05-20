@@ -9,7 +9,7 @@
 # Apache License, Version 2.0.  See the LICENSE file.
 set -euo pipefail
 
-VERSION="1.1.0"
+VERSION="1.2.0"
 REPO="mistral-vibe-patches"
 
 GREEN='\033[0;32m'
@@ -41,11 +41,9 @@ Options:
   --version, -v  Show version
   --help, -h     Show this help
 
-Patches fix:
-  1) User config (~/.vibe/config.toml) now takes precedence over project
-     config (.vibe/config.toml) when both exist.
-  2) reasoning_effort and reasoning_content are omitted when thinking="off",
-     preventing 400 errors on models like devstral-small-latest.
+Patches:
+  1  config-merge    User config takes precedence over project config
+  2  reasoning-unset Omit reasoning_effort when thinking is off
 EOF
     exit 0
 fi
@@ -93,23 +91,48 @@ echo -e "  Installation : $SITE_PKG"
 echo ""
 
 # ── List patches ──────────────────────────────────────────────────────
-PATCH_LIST=()
+ALL_PATCHES=()
 if [ -f "$PATCHES_DIR/001-config-merge.patch" ]; then
-    PATCH_LIST+=("$PATCHES_DIR/001-config-merge.patch")
+    ALL_PATCHES+=("$PATCHES_DIR/001-config-merge.patch")
 fi
 if [ -f "$PATCHES_DIR/002-reasoning-unset.patch" ]; then
-    PATCH_LIST+=("$PATCHES_DIR/002-reasoning-unset.patch")
+    ALL_PATCHES+=("$PATCHES_DIR/002-reasoning-unset.patch")
 fi
 
-if [ ${#PATCH_LIST[@]} -eq 0 ]; then
+if [ ${#ALL_PATCHES[@]} -eq 0 ]; then
     fail "No patches found in $PATCHES_DIR"
 fi
 
-# ── Reverse mode ──────────────────────────────────────────────────────
+# ── Parse remaining flags ─────────────────────────────────────────────
+ONLY=""
 REVERSE=false
-if [ "${1:-}" = "--reverse" ]; then
-    REVERSE=true
-    shift
+while [ $# -gt 0 ]; do
+    case "${1:-}" in
+        --only)
+            shift
+            ONLY="${1:-}"
+            shift
+            ;;
+        --reverse)
+            REVERSE=true
+            shift
+            ;;
+        *)
+            shift  # skip unknown
+            ;;
+    esac
+done
+
+# Filter by patch number
+PATCH_LIST=()
+if [ -n "$ONLY" ]; then
+    case "$ONLY" in
+        1) PATCH_LIST=("${ALL_PATCHES[0]}") ;;
+        2) PATCH_LIST=("${ALL_PATCHES[1]}") ;;
+        *) fail "Invalid patch number: $ONLY (valid: 1, 2)" ;;
+    esac
+else
+    PATCH_LIST=("${ALL_PATCHES[@]}")
 fi
 
 RFLAG=""

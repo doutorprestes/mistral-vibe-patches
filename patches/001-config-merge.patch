@@ -1,17 +1,14 @@
 From: José Augusto de Lima Prestes <doutorprestes@gmail.com>
-Date: Sun, 17 May 2026
+Date: Tue, 19 May 2026
 Subject: [PATCH 1/2] Fix user config ignored when project config exists
 
 Vibe CLI was ignoring ~/.vibe/config.toml when a project-level
 .vibe/config.toml existed. User-defined [[models]] and active_model
 were silently discarded.
 
-  - HarnessFilesManager: moved user_config_file property next to
-    config_file for discoverability (path stays ~/.vibe/config.toml,
-    NOT ~/.vibe/.vibe/config.toml — the .vibe/ subdirectory is a
-    project-level convention)
   - TomlFileSettingsSource._load_toml(): merge user + project configs
-    with user taking precedence
+    with user taking precedence when both "user" and "project" sources
+    are enabled
   - _deep_merge_preserving_lists(): intelligent merge for models and
     providers lists by identifier (alias / name)
 
@@ -19,9 +16,11 @@ This patch is a derivative work of Mistral Vibe, Copyright Mistral AI.
 Original: https://github.com/mistralai/mistral-vibe (Apache 2.0)
 Signed-off-by: José Augusto de Lima Prestes <doutorprestes@gmail.com>
 
---- a/vibe/core/config/_settings.py	2026-05-17 18:59:10.139763851 -0300
-+++ b/vibe/core/config/_settings.py	2026-05-17 18:57:07.710087523 -0300
-@@ -94,18 +94,121 @@
+diff --git a/vibe/core/config/_settings.py b/vibe/core/config/_settings.py
+index 7f2fddc..b7b7264 100644
+--- a/vibe/core/config/_settings.py
++++ b/vibe/core/config/_settings.py
+@@ -82,18 +82,95 @@ class TomlFileSettingsSource(PydanticBaseSettingsSource):
          self.toml_data = self._load_toml()
  
      def _load_toml(self) -> dict[str, Any]:
@@ -39,16 +38,13 @@ Signed-off-by: José Augusto de Lima Prestes <doutorprestes@gmail.com>
 -            raise RuntimeError(f"Cannot read {file}: {e}") from e
 +        mgr = get_harness_files_manager()
 +
-+        # If both user and project sources are enabled, merge configurations
-+        # with user config taking precedence over project config
 +        if "user" in mgr.sources and "project" in mgr.sources:
-+            # Start with project config as base
 +            merged_data = {}
 +            project_file = mgr.config_file
 +            if (
 +                project_file
 +                and project_file.is_file()
-+                and mgr.trusted_workdir is not None
++                and mgr._trusted_workdir is not None
 +            ):
 +                try:
 +                    with project_file.open("rb") as f:
@@ -56,14 +52,11 @@ Signed-off-by: José Augusto de Lima Prestes <doutorprestes@gmail.com>
 +                except (FileNotFoundError, tomllib.TOMLDecodeError, OSError):
 +                    pass
 +
-+            # Overlay user config on top (so user settings take precedence)
 +            user_file = mgr.user_config_file
 +            if user_file and user_file.is_file():
 +                try:
 +                    with user_file.open("rb") as f:
 +                        user_data = tomllib.load(f)
-+
-+                    # Deep merge with special handling for lists (like models)
 +                    merged_data = self._deep_merge_preserving_lists(
 +                        merged_data, user_data
 +                    )
@@ -72,7 +65,6 @@ Signed-off-by: José Augusto de Lima Prestes <doutorprestes@gmail.com>
 +
 +            return merged_data
 +        else:
-+            # Fall back to original behavior for single source or when project not trusted
 +            file = mgr.config_file
 +            if file is None:
 +                return {}
@@ -89,18 +81,6 @@ Signed-off-by: José Augusto de Lima Prestes <doutorprestes@gmail.com>
 +    def _deep_merge_preserving_lists(
 +        self, base: dict[str, Any], overlay: dict[str, Any]
 +    ) -> dict[str, Any]:
-+        """Merge two dicts, preserving list items from base when overlay doesn't specify them.
-+
-+        For the 'models' and 'providers' lists specifically, base items are preserved
-+        when they are not overridden by overlay items with the same identifier.
-+
-+        Args:
-+            base: Base configuration to merge into.
-+            overlay: Override configuration that takes precedence over base.
-+
-+        Returns:
-+            Merged dictionary with overlay taking precedence.
-+        """
 +        result = dict(base)
 +
 +        for key, value in overlay.items():
@@ -109,16 +89,13 @@ Signed-off-by: José Augusto de Lima Prestes <doutorprestes@gmail.com>
 +                and isinstance(result[key], list)
 +                and isinstance(value, list)
 +            ):
-+                # Special handling for known lists that should be merged intelligently
 +                if key == "models":
-+                    # Create a dict of base models by alias for quick lookup
 +                    base_models_by_alias = {
 +                        model.get("alias"): model
 +                        for model in result[key]
 +                        if isinstance(model, dict) and model.get("alias")
 +                    }
 +
-+                    # Overlay models replace or add to base models
 +                    for overlay_model in value:
 +                        if isinstance(overlay_model, dict) and overlay_model.get(
 +                            "alias"
@@ -126,10 +103,8 @@ Signed-off-by: José Augusto de Lima Prestes <doutorprestes@gmail.com>
 +                            alias = overlay_model["alias"]
 +                            base_models_by_alias[alias] = overlay_model
 +
-+                    # Convert back to list
 +                    result[key] = list(base_models_by_alias.values())
 +                elif key == "providers":
-+                    # Similar logic for providers
 +                    base_providers_by_name = {
 +                        provider.get("name"): provider
 +                        for provider in result[key]
@@ -145,37 +120,11 @@ Signed-off-by: José Augusto de Lima Prestes <doutorprestes@gmail.com>
 +
 +                    result[key] = list(base_providers_by_name.values())
 +                else:
-+                    # For other lists, overlay completely replaces base (preserving existing behavior)
 +                    result[key] = value
 +            else:
-+                # For non-list values or when key doesn't exist in base, overlay replaces
 +                result[key] = value
 +
 +        return result
  
      def get_field_value(
          self, field: FieldInfo, field_name: str
-
-diff --git a/vibe/core/config/harness_files/_harness_manager.py b/vibe/core/config/harness_files/_harness_manager.py
-@@ -53,6 +53,10 @@
-         return None
- 
-     @property
-+    def user_config_file(self) -> Path:
-+        return VIBE_HOME.path / "config.toml"
-+
-+    @property
-     def hook_files(self) -> list[Path]:
-         hook_files: list[Path] = []
-         if "user" in self.sources:
-@@ -106,10 +110,6 @@
-         return list(self._walk_project_dirs().agents)
- 
-     @property
--    def user_config_file(self) -> Path:
--        return VIBE_HOME.path / "config.toml"
--
--    @property
-     def project_prompts_dirs(self) -> list[Path]:
-         workdir = self.trusted_workdir
-         if workdir is None:

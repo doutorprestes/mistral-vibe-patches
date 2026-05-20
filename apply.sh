@@ -151,21 +151,15 @@ done
 echo ""
 info "Verifying patches..."
 
-MANAGER="$VIBE_DIR/core/config/harness_files/_harness_manager.py"
+SETTINGS="$VIBE_DIR/core/config/_settings.py"
 MISTRAL="$VIBE_DIR/core/llm/backend/mistral.py"
 
-# Verify config-merge: user_config_file must be ~/.vibe/config.toml (NOT ~/.vibe/.vibe/)
-if [ -f "$MANAGER" ]; then
-    if grep -q "def user_config_file" "$MANAGER" 2>/dev/null; then
-        ok "user_config_file property present"
-        # Ensure the path is correct (not ~/.vibe/.vibe/config.toml)
-        if grep -q 'VIBE_HOME.path / ".vibe" / "config.toml"' "$MANAGER" 2>/dev/null; then
-            fail "user_config_file points to ~/.vibe/.vibe/config.toml (wrong path). Patch 1 was not applied correctly."
-        elif grep -q 'VIBE_HOME.path / "config.toml"' "$MANAGER" 2>/dev/null; then
-            ok "user_config_file path is correct (~/.vibe/config.toml)"
-        fi
+# Verify config-merge: _deep_merge_preserving_lists should exist in _settings.py
+if [ -f "$SETTINGS" ]; then
+    if grep -q "def _deep_merge_preserving_lists" "$SETTINGS" 2>/dev/null; then
+        ok "_deep_merge_preserving_lists method present in settings"
     else
-        warn "user_config_file property not found (may have been reversed)"
+        warn "_deep_merge_preserving_lists not found (may have been reversed)"
     fi
 fi
 

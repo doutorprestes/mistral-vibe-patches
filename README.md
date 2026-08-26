@@ -7,7 +7,6 @@ Projeto de desenvolvimento e pesquisa.
 em desenvolvimento
 
 ## Estado atual
-- Último commit: `9585fa4 Clean up documentation`
 - Branch principal: `main`
 
 ## Como executar

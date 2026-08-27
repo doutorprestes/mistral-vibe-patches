@@ -1,7 +1,7 @@
 # mistral-vibe-patches
 
 ## O que é
-Projeto de desenvolvimento e pesquisa.
+Patches de validação e correção para agentes Vibe.
 
 ## Estágio
 em desenvolvimento
@@ -13,8 +13,7 @@ em desenvolvimento
 Consulte os scripts do repositório para execução local.
 
 ## Estrutura
-- `apply.sh`
-- `README.md`
+- Estrutura documentada no repositório.
 
 ## Próximos passos
 1. Revisar documentação.
